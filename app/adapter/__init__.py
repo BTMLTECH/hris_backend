@@ -1,0 +1,1 @@
+from app.adapter.sqlalchemy_adapter import SQLAlchemyAdapter
