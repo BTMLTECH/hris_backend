@@ -11,8 +11,8 @@ from app.models.department import Department
 from app.models.user_department import UserDepartmentLink
 from app.repositories.department_repository import DepartmentRepository
 from app.repositories.user_department_repository import UserDepartmentLinkRepository
-from app.schemas.department_schema import CreateDepartmentSchema
-from app.core.exceptions import GeneralError
+from app.schemas.department_schema import CreateDepartmentSchema, UpdateDepartmentSchema
+from app.core.exceptions import GeneralError, NotFoundError
 import logging
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -111,7 +111,7 @@ class DepartmentService(BaseService):
 
             logger.info(f"User has been added to department successfully")
             return await self.department_repository.get_by_id(department_uid)
-            
+
         except SQLAlchemyError as e:
             orig = getattr(e, "orig", None)
             if orig:
@@ -143,7 +143,6 @@ class DepartmentService(BaseService):
                 detail="An error has occured while getting list of departments"
             )
 
-
     async def get_department_by_id(self, id: str) -> Optional[Department]:
         """Get a department by ID"""
         try:
@@ -163,3 +162,23 @@ class DepartmentService(BaseService):
             raise GeneralError(
                 detail="An error has occured while getting list of departments"
             )
+
+    async def update_department_by_id(self, id: str, department: UpdateDepartmentSchema):
+        """Update a department by ID"""
+        from uuid import UUID
+
+        try:
+            department_uid = UUID(id)
+        except (TypeError, ValueError):
+            raise GeneralError(detail="Department ID is invalid", status_code=400)
+        
+        try:
+            department_data = await self.get_department_by_id(id)
+
+            if not department_data or department_data is None:
+                raise NotFoundError(detail="Department not found or doesn't exist")
+            
+            return await self.department_repository.update_by_id(department_uid, department)
+        except Exception as e:
+            logger.error(f"An error has occured while updating department {e}")
+            raise GeneralError(detail="Could not update department")

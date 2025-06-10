@@ -14,6 +14,7 @@ from app.repositories.attendance_repository import AttendanceRepository
 from app.repositories.bank_repository import BankRepository
 from app.repositories.department_repository import DepartmentRepository
 from app.repositories.payroll_repository import PayrollRepository
+from app.repositories.pension_repository import PensionRepository
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_department_repository import UserDepartmentLinkRepository
@@ -24,6 +25,7 @@ from app.services.bank_service import BankService
 from app.services.department_service import DepartmentService
 from app.services.leave_service import LeaveRequestService
 from app.services.payroll_service import PayrollService
+from app.services.pension_service import PensionService
 from app.services.permission_service import PermissionService
 from app.services.role_service import RoleService
 from app.services.user_service import UserService
@@ -44,6 +46,7 @@ class Container(containers.DeclarativeContainer):
             "app.api.endpoints.leave",
             "app.api.endpoints.role",
             "app.api.endpoints.payroll",
+            "app.api.endpoints.pension",
             "app.api.endpoints.permission",
             "app.core.dependencies",
         ]
@@ -89,9 +92,14 @@ class Container(containers.DeclarativeContainer):
     )
     auth_repository = providers.Factory(UserRepository, db_adapter=database_adapter)
     bank_repository = providers.Factory(BankRepository, db_adapter=database_adapter)
-    department_repository = providers.Factory(DepartmentRepository, db_adapter=database_adapter)
+    department_repository = providers.Factory(
+        DepartmentRepository, db_adapter=database_adapter
+    )
     payroll_repository = providers.Factory(
         PayrollRepository, db_adapter=database_adapter
+    )
+    pension_repository = providers.Factory(
+        PensionRepository, db_adapter=database_adapter
     )
     permission_repository = providers.Factory(
         PermissionRepository, db_adapter=database_adapter
@@ -109,7 +117,9 @@ class Container(containers.DeclarativeContainer):
         LeaveRelieverRepository, db_adapter=database_adapter
     )
 
-    user_department_repository = providers.Factory(UserDepartmentLinkRepository, db_adapter=database_adapter)
+    user_department_repository = providers.Factory(
+        UserDepartmentLinkRepository, db_adapter=database_adapter
+    )
 
     user_supervisor_repository = providers.Factory(
         UserSupervisorRepository, db_adapter=database_adapter
@@ -119,7 +129,9 @@ class Container(containers.DeclarativeContainer):
     attendance_service = providers.Factory(AttendanceService, attendance_repository)
     auth_service = providers.Factory(AuthService, user_repository)
     bank_service = providers.Factory(BankService, bank_repository)
-    department_service = providers.Factory(DepartmentService, department_repository, user_department_repository)
+    department_service = providers.Factory(
+        DepartmentService, department_repository, user_department_repository
+    )
 
     leave_request_service = providers.Factory(
         LeaveRequestService,
@@ -129,8 +141,13 @@ class Container(containers.DeclarativeContainer):
         user_supervisor_repository=user_supervisor_repository,
     )
     payroll_service = providers.Factory(PayrollService, payroll_repository)
+    pension_service = providers.Factory(PensionService, pension_repository)
     permission_service = providers.Factory(PermissionService, permission_repository)
     role_service = providers.Factory(RoleService, role_repository)
     user_service = providers.Factory(
-        UserService, user_repository, role_repository, permission_repository, department_repository
+        UserService,
+        user_repository,
+        role_repository,
+        permission_repository,
+        department_repository,
     )

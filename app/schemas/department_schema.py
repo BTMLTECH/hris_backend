@@ -41,10 +41,12 @@ class ReadDepartmentSchema(ModelBaseInfo):
 
     team_members: Optional[List[UserBaseSchema]] = None
 
-class UpdateDepartmentSchema(ModelBaseInfo):
+class UpdateDepartmentSchema(BaseModel):
     name: Optional[str] = None
 
     description: Optional[str] = None
+
+    team_lead_id: Optional[str] = None
 
 
 class AssignDepartmentTeamLeadSchema(BaseModel):

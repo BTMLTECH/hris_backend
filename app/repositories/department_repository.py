@@ -10,11 +10,13 @@ from app.adapter.json_adapter import JSONAdapter
 from app.adapter.sqlalchemy_adapter import SQLAlchemyAdapter
 from app.models.department import Department
 from typing import List, Optional, Sequence, TypeVar, Union
+from app.models.role import Role
 from app.repositories.base_repository import BaseRepository
 from sqlalchemy.orm import selectinload
 import logging
 from sqlalchemy.exc import IntegrityError
-from app.schemas.department_schema import CreateDepartmentSchema
+from app.schemas.department_schema import CreateDepartmentSchema, UpdateDepartmentSchema
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +74,9 @@ class DepartmentRepository(BaseRepository):
                         selectinload(self.model.team_members).selectinload(
                             User.permissions
                         ),
-                        selectinload(self.model.team_members).selectinload(User.role),
+                        selectinload(self.model.team_members)
+                        .selectinload(User.role)
+                        .selectinload(Role.permissions),
                         selectinload(self.model.team_members).selectinload(
                             User.employment_type
                         ),
@@ -146,7 +150,9 @@ class DepartmentRepository(BaseRepository):
                         selectinload(self.model.team_members).selectinload(
                             User.permissions
                         ),
-                        selectinload(self.model.team_members).selectinload(User.role),
+                        selectinload(self.model.team_members)
+                        .selectinload(User.role)
+                        .selectinload(Role.permissions),
                         selectinload(self.model.team_members).selectinload(
                             User.employment_type
                         ),
@@ -218,7 +224,9 @@ class DepartmentRepository(BaseRepository):
                     selectinload(self.model.team_members).selectinload(
                         User.permissions
                     ),
-                    selectinload(self.model.team_members).selectinload(User.role),
+                    selectinload(self.model.team_members)
+                    .selectinload(User.role)
+                    .selectinload(Role.permissions),
                     selectinload(self.model.team_members).selectinload(
                         User.employment_type
                     ),
@@ -236,7 +244,9 @@ class DepartmentRepository(BaseRepository):
                         User.next_of_kin
                     ),
                     selectinload(self.model.team_lead).selectinload(User.permissions),
-                    selectinload(self.model.team_lead).selectinload(User.role),
+                    selectinload(self.model.team_lead)
+                    .selectinload(User.role)
+                    .selectinload(Role.permissions),
                     selectinload(self.model.team_lead).selectinload(
                         User.employment_type
                     ),
@@ -290,35 +300,120 @@ class DepartmentRepository(BaseRepository):
             except Exception as e:
                 raise
 
-    async def assign_team_member(
-        self, team_members: UUID, department_id: UUID
-    ) -> Optional[Department]:
-        """Assign a team member to a department record in the database"""
-        async with self.session_scope() as session:
-            try:
+    # async def assign_team_member(
+    #     self, team_member: UUID, department_id: UUID
+    # ) -> Optional[Department]:
+    #     """Assign a team member to a department record in the database"""
+    #     async with self.session_scope() as session:
+    #         try:
+    #             query = (
+    #                 update(self.model)
+    #                 .where(self.model.id == department_id)
+    #                 .values({"team_lead_id": team_lead_id})
+    #                 .execution_options(synchronize_session="fetch")
+    #             )
+
+    #             result = await session.execute(query)
+
+    #             q = (
+    #                 select(self.model)
+    #                 .where(self.model.id == department_id)
+    #                 .options(
+    #                     selectinload(self.model.team_lead),
+    #                     selectinload(self.model.team_members),
+    #                 )
+    #             )
+
+    #             updated_record = (await session.execute(q)).scalar_one_or_none()
+
+    #             if result.rowcount < 1:
+    #                 return updated_record
+
+    #             return updated_record
+    #         except Exception as e:
+    #             raise
+    async def update_by_id(self, id: UUID, department_fields: UpdateDepartmentSchema):
+        """Update department record by ID"""
+        try:
+            async with self.session_scope() as session:
                 query = (
                     update(self.model)
-                    .where(self.model.id == department_id)
-                    .values({"team_lead_id": team_lead_id})
+                    .where(self.model.id == id)
+                    .values({**department_fields.model_dump(exclude_none=True)})
                     .execution_options(synchronize_session="fetch")
                 )
 
                 result = await session.execute(query)
 
-                q = (
-                    select(self.model)
-                    .where(self.model.id == department_id)
-                    .options(
-                        selectinload(self.model.team_lead),
-                        selectinload(self.model.team_members),
-                    )
-                )
+                from app.models.user import User
+                from app.models.role import Role
 
-                updated_record = (await session.execute(q)).scalar_one_or_none()
+                updated_record = (
+                    await session.execute(
+                        select(self.model)
+                        .where(self.model.id == id)
+                        .options(
+                            selectinload(self.model.team_members),
+                        selectinload(self.model.team_lead),
+                        selectinload(self.model.team_members).selectinload(
+                            User.permissions
+                        ),
+                        selectinload(self.model.team_members)
+                        .selectinload(User.role)
+                        .selectinload(Role.permissions),
+                        selectinload(self.model.team_members).selectinload(
+                            User.employment_type
+                        ),
+                        selectinload(self.model.team_members).selectinload(
+                            User.pension
+                        ),
+                        selectinload(self.model.team_members).selectinload(User.bank),
+                        selectinload(self.model.team_members).selectinload(
+                            User.payroll_class
+                        ),
+                        selectinload(self.model.team_members).selectinload(
+                            User.department
+                        ),
+                        selectinload(self.model.team_members).selectinload(
+                            User.leave_requests
+                        ),
+                        selectinload(self.model.team_members).selectinload(
+                            User.attendance
+                        ),
+                        selectinload(self.model.team_members).selectinload(
+                            User.next_of_kin
+                        ),
+                        selectinload(self.model.team_lead).selectinload(
+                            User.permissions
+                        ),
+                        selectinload(self.model.team_lead).selectinload(User.role),
+                        selectinload(self.model.team_lead).selectinload(
+                            User.employment_type
+                        ),
+                        selectinload(self.model.team_lead).selectinload(User.pension),
+                        selectinload(self.model.team_lead).selectinload(User.bank),
+                        selectinload(self.model.team_lead).selectinload(
+                            User.payroll_class
+                        ),
+                        selectinload(self.model.team_lead).selectinload(
+                            User.department
+                        ),
+                        selectinload(self.model.team_lead).selectinload(
+                            User.leave_requests
+                        ),
+                        selectinload(self.model.team_lead).selectinload(
+                            User.attendance
+                        ),
+                        selectinload(self.model.team_lead).selectinload(
+                            User.next_of_kin
+                        ),
+                    )
+                )).scalar_one_or_none()
 
                 if result.rowcount < 1:
                     return updated_record
 
                 return updated_record
-            except Exception as e:
-                raise
+        except SQLAlchemyError as e:
+            logger.error("Database error: {e}")
+            raise e

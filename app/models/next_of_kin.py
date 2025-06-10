@@ -19,7 +19,7 @@ class NextOfKin(BaseModel, table=True):
 
     phone: str = Field(sa_column=Column("phone", String(255), nullable=True))
 
-    email: str = Field(sa_column=Column("email", String(255), nullable=True))
+    email: Optional[str] = Field(sa_column=Column("email", String(255), nullable=True))
 
     relationship: str = Field(
         sa_column=Column("relationship", String(255), nullable=True)

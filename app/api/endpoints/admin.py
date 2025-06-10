@@ -3,7 +3,7 @@
 # Author: Oluwatobiloba Light
 """Admin endpoint"""
 
-from typing import Sequence
+from typing import Optional, Sequence
 from fastapi import APIRouter, Depends
 from dependency_injector.wiring import Provide, inject
 
@@ -14,6 +14,7 @@ from app.schemas.auth_schema import UserSignUpResponseSchema, UserSignUpSchema
 from app.schemas.user_schema import (
     CreateEmploymentTypeSchema,
     ReadEmploymentTypeSchema,
+    UpdateEmploymentTypeSchema,
     UserSchema,
     UserUpdateSchema,
 )
@@ -88,8 +89,6 @@ async def get_user_by_id(
                 "super_admin",
                 "hr",
                 "manager",
-                "department_lead",
-                "employee",
             ],
             required_permissions=[],
         )
@@ -221,11 +220,32 @@ async def get_user_profile(
     """Route to get a user profile on HRIS"""
     return current_user
 
+@router.patch(
+    "/employee/{user_id}/edit",
+    response_model=UserSchema,
+    name="Edit an employee's profile",
+    description="This route allows an admin to edit an employee's profile on HRIS",
+)
+@inject
+async def edit_employee_profile(
+    user_id: str,
+    updated_user_info: UserUpdateSchema,
+    service: UserService = Depends(Provide[Container.user_service]),
+    current_user: User = Depends(
+        require_roles_and_permissions(
+            required_roles=["super_admin", "hr", "manager", "department_lead"],
+            required_permissions=[],
+        )
+    ),
+):
+    """Route to edit an employee's profile on HRIS"""
+    user = await service.edit_employee_profile(user_id, updated_user_info)
+    return user
 
 @router.post(
     "/profile/edit",
     response_model=None,
-    name="Edit a user profile on HRIS",
+    name="Edit a currently logged in user profile on HRIS",
     description="This route is used to edit a user profile on HRIS",
 )
 @inject
@@ -244,6 +264,7 @@ async def edit_user_profile(
     return user
 
 
+# EMPLOYMENT TYPES
 @router.post(
     "/employment-type/create",
     response_model=ReadEmploymentTypeSchema,
@@ -287,3 +308,50 @@ async def get_all_employment_types(
     employment_types = await service.get_employment_types()
 
     return employment_types
+
+
+@router.patch(
+    "/employment-type/{employment_type_id}/update",
+    response_model=ReadEmploymentTypeSchema,
+    name="Update an employment type",
+    description="This route is used to update an employment type on HRIS",
+)
+@inject
+async def update_employment_type(
+    employment_type_id: str,
+    employment_type_data: UpdateEmploymentTypeSchema,
+    service: UserService = Depends(Provide[Container.user_service]),
+    current_user: User = Depends(
+        require_roles_and_permissions(
+            required_roles=["super_admin", "manager", "hr"],
+            required_permissions=[],
+        )
+    ),
+):
+    """Route to view an employee type on HRIS"""
+    employment_type = await service.update_employment_type(employment_type_id, employment_type_data)
+
+    return employment_type
+
+
+@router.delete(
+    "/employment-type/{employment_type_id}/delete",
+    response_model=Optional[bool],
+    name="Delete an employment type",
+    description="This route is used to delete an employment type on HRIS",
+)
+@inject
+async def delete_employment_type(
+    employment_type_id: str,
+    service: UserService = Depends(Provide[Container.user_service]),
+    current_user: User = Depends(
+        require_roles_and_permissions(
+            required_roles=["super_admin", "manager", "hr"],
+            required_permissions=[],
+        )
+    ),
+):
+    """Route to view an employee type on HRIS"""
+    employment_type = await service.delete_employment_type_by_id(employment_type_id,)
+
+    return employment_type

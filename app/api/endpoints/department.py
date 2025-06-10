@@ -151,3 +151,30 @@ async def assign_team_member_to_department(
     )
 
     return result
+
+
+@router.patch(
+    "/{department_id}/edit",
+    response_model=Optional[ReadDepartmentSchema],
+    name="Update a department by ID",
+    description="This route is used to update a department by ID",
+)
+@inject
+async def update_department(
+    department_id: str,
+    data: UpdateDepartmentSchema,
+    department_service: DepartmentService = Depends(
+        Provide[Container.department_service]
+    ),
+    current_user: User = Depends(
+        require_roles_and_permissions(
+            required_roles=["super_admin", "hr", "manager"],
+            required_permissions=[],
+        )
+    ),
+):
+    """Route to assign a team lead to a department"""
+    print("data", data)
+    result = await department_service.update_department_by_id(department_id, data)
+
+    return result

@@ -9,26 +9,33 @@ from app.adapter.json_adapter import JSONAdapter
 from app.adapter.sqlalchemy_adapter import SQLAlchemyAdapter
 from app.core.security import get_password_hash
 from app.models.employment_type import EmploymentType
-from app.models.permission import Permission
 from app.models.role import Role
 from app.models.user_permission import UserPermissionLink
 from app.models.user_role import UserRoleLink
 from app.schemas.auth_schema import (
-    CreateUserSchema,
     UserSignUpSchema,
 )
 from app.models.user import User
 from typing import Sequence, TypeVar, Union
 from psycopg2 import IntegrityError
 from sqlalchemy import UUID, select, update
-from app.core.exceptions import CustomDatabaseError, DuplicatedError
+from app.core.exceptions import CustomDatabaseError, GeneralError, NotFoundError
 from app.repositories.base_repository import BaseRepository
 from sqlalchemy.orm import selectinload
 import logging
 from sqlalchemy.exc import SQLAlchemyError
-
-
-from app.schemas.user_schema import CreateEmploymentTypeSchema, ReadEmploymentTypeSchema
+from app.schemas.user_schema import (
+    CreateEmploymentTypeSchema,
+    ReadEmploymentTypeSchema,
+    UpdateEmploymentTypeSchema,
+    UserUpdateSchema,
+)
+from sqlalchemy.exc import (
+    OperationalError,
+    ProgrammingError,
+    NoResultFound,
+    StatementError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +87,18 @@ class UserRepository(BaseRepository):
                     # Ensure password is hashed
                     schema.password = get_password_hash(schema.password)
                     new_user = self.model(
+                        role=schema.role,
                         permissions=schema.permissions,
+                        next_of_kin=schema.next_of_kin,
                         **schema.model_dump(
                             exclude_none=True,
                             exclude=[
+                                "role",
                                 "permissions",
                                 "user_role",
                                 "user_permissions",
                                 "next_of_kin",
+                                "bank",
                             ],
                         ),
                     )
@@ -171,6 +182,157 @@ class UserRepository(BaseRepository):
             except Exception as e:
                 logger.error("Unexpected error during creation: %s", e)
                 raise e
+
+    async def get_all_employment_types(self) -> Sequence[ReadEmploymentTypeSchema]:
+        """Get all employment types records from the database"""
+        async with self.db_adapter.session() as session, session.begin():
+            from app.models.employment_type import EmploymentType
+
+            try:
+                query = select(EmploymentType)
+
+                query = (await session.execute(query)).scalars().all()
+                return query
+            except Exception as e:
+                logger.error("An error has occured {}".format(e))
+                raise
+
+    async def update_employment_type_by_id(
+        self, id: UUID, employment_type_fields: UpdateEmploymentTypeSchema
+    ) -> EmploymentType:
+        """Update an employment type record in the database by ID"""
+        try:
+            async with self.session_scope() as session:
+                query = (
+                    update(EmploymentType)
+                    .where(EmploymentType.id == id)
+                    .values({**employment_type_fields.model_dump(exclude_none=True)})
+                    .execution_options(synchronize_session="fetch")
+                )
+
+                result = await session.execute(query)
+
+                updated_record = (
+                    await session.execute(
+                        select(EmploymentType).where(EmploymentType.id == id)
+                    )
+                ).scalar_one_or_none()
+
+                if result.rowcount < 1:
+                    return updated_record
+
+                return updated_record
+        except OperationalError as e:
+            logger.error("Operational error (e.g., DB connection issue): %s", e)
+            raise CustomDatabaseError(
+                message="Something happened with the database connectivity"
+            )
+
+        except ProgrammingError as e:
+            logger.error("Programming error (e.g., invalid column/table): %s", e)
+            raise CustomDatabaseError(message=str(e))
+
+        except NoResultFound as e:
+            logger.warning("No result found where one was expected: %s", e)
+            raise NotFoundError(detail="Bank does not exist or ID is invalid")
+
+        except StatementError as e:
+            logger.error("Statement error (e.g., type mismatch or bad query): %s", e)
+            raise CustomDatabaseError(
+                message="An error occured executing query statement"
+            )
+
+        except AttributeError as e:
+            logger.error("Model attribute error: %s", e)
+            raise GeneralError(detail="Model attribute error")
+
+        except TypeError as e:
+            logger.error("Type error in select/model usage: %s", e)
+            raise GeneralError(detail="Type error ")
+
+    async def get_employment_type_by_id(self, id: UUID):
+        """Get employment type record by ID"""
+        query = select(EmploymentType).where(EmploymentType.id == id)
+
+        try:
+            async with self.db_adapter.session() as session, session.begin():
+                result = (await session.execute(query)).scalar_one_or_none()
+
+                return result
+        except OperationalError as e:
+            logger.error("Operational error (e.g., DB connection issue): %s", e)
+            raise CustomDatabaseError(
+                message="Something happened with the database connectivity"
+            )
+
+        except ProgrammingError as e:
+            logger.error("Programming error (e.g., invalid column/table): %s", e)
+            raise CustomDatabaseError(message=str(e))
+
+        except NoResultFound as e:
+            logger.warning("No result found where one was expected: %s", e)
+            raise NotFoundError(detail="Employment type does not exist or ID is invalid")
+
+        except StatementError as e:
+            logger.error("Statement error (e.g., type mismatch or bad query): %s", e)
+            raise CustomDatabaseError(
+                message="An error occured executing query statement"
+            )
+
+        except AttributeError as e:
+            logger.error("Model attribute error: %s", e)
+            raise GeneralError(detail="Model attribute error")
+
+        except TypeError as e:
+            logger.error("Type error in select/model usage: %s", e)
+            raise GeneralError(detail="Type error ")
+
+        return None
+
+    async def delete_employment_type_by_id(self, id: UUID) -> bool:
+        try:
+            async with self.session_scope() as session:
+                employmnt_type = (
+                    await session.execute(
+                        select(EmploymentType).where(EmploymentType.id == id)
+                    )
+                ).scalar_one_or_none()
+
+                if not employmnt_type:
+                    return False
+
+                await session.delete(employmnt_type)
+                await session.commit()
+                return True
+        except OperationalError as e:
+            logger.error("Operational error (e.g., DB connection issue): %s", e)
+            raise CustomDatabaseError(
+                message="Something happened with the database connectivity"
+            )
+
+        except ProgrammingError as e:
+            logger.error("Programming error (e.g., invalid column/table): %s", e)
+            raise CustomDatabaseError(message=str(e))
+
+        except NoResultFound as e:
+            logger.warning("No result found where one was expected: %s", e)
+            raise NotFoundError(
+                detail="Employment Type does not exist or ID is invalid"
+            )
+
+        except StatementError as e:
+            logger.error("Statement error (e.g., type mismatch or bad query): %s", e)
+            raise CustomDatabaseError(
+                message="An error occured executing query statement"
+            )
+
+        except AttributeError as e:
+            logger.error("Model attribute error: %s", e)
+            raise GeneralError(detail="Model attribute error")
+
+        except TypeError as e:
+            logger.error("Type error in select/model usage: %s", e)
+            raise GeneralError(detail="Type error ")
 
     async def update(
         self, schema: T, updated_fields: dict[str, any]
@@ -262,6 +424,8 @@ class UserRepository(BaseRepository):
 
                     query = (await session.execute(query)).scalar_one_or_none()
 
+                    print("query")
+
                     return query
                 except Exception as e:
                     print("An error has occured", e)
@@ -291,13 +455,11 @@ class UserRepository(BaseRepository):
         """Activates an employee"""
         try:
             async with self.session_scope() as session:
-                result = (
-                    await session.execute(
-                        update(self.model)
-                        .where(self.model.id == id)
-                        .values({"is_active": True})
-                        .execution_options(synchronize_session="fetch")
-                    )
+                result = await session.execute(
+                    update(self.model)
+                    .where(self.model.id == id)
+                    .values({"is_active": True})
+                    .execution_options(synchronize_session="fetch")
                 )
 
                 q = select(self.model).where(self.model.id == id)
@@ -306,7 +468,7 @@ class UserRepository(BaseRepository):
 
                 if result.rowcount < 1:
                     return updated_record
-                
+
                 print("shshs", updated_record.is_active)
 
                 return updated_record
@@ -319,13 +481,11 @@ class UserRepository(BaseRepository):
         """Deactivates an employee"""
         try:
             async with self.session_scope() as session:
-                result = (
-                    await session.execute(
-                        update(self.model)
-                        .where(self.model.id == id)
-                        .values({"is_active": False})
-                        .execution_options(synchronize_session="fetch")
-                    )
+                result = await session.execute(
+                    update(self.model)
+                    .where(self.model.id == id)
+                    .values({"is_active": False})
+                    .execution_options(synchronize_session="fetch")
                 )
 
                 q = select(self.model).where(self.model.id == id)
@@ -334,7 +494,7 @@ class UserRepository(BaseRepository):
 
                 if result.rowcount < 1:
                     return updated_record
-                
+
                 print("shshs", updated_record.is_active)
 
                 return updated_record
@@ -366,45 +526,90 @@ class UserRepository(BaseRepository):
                 logger.error("An error has occured {}".format(e))
                 raise
 
-    async def get_all_employment_types(self) -> Sequence[ReadEmploymentTypeSchema]:
-        """Get all employment types records from the database"""
-        async with self.db_adapter.session() as session, session.begin():
-            from app.models.employment_type import EmploymentType
-
-            try:
-                query = select(EmploymentType)
-
-                query = (await session.execute(query)).scalars().all()
-                return query
-            except Exception as e:
-                logger.error("An error has occured {}".format(e))
-                raise
-
     async def update_by_id(
-        self, id: UUID, updated_fields: dict[str, any]
+        self, id: UUID, updated_fields: UserUpdateSchema
     ) -> Union[User, None]:
-        """Update a user by ID"""
-        async with self.db_adapter.session() as session, session.begin():
-            try:
+        """
+        Update a user by ID.
+
+        Args:
+            id (UUID): The user's unique identifier.
+            updated_fields (UserUpdateSchema): Fields to update.
+
+        Returns:
+            User | None: The updated user object, or None if not found.
+        """
+        try:
+            async with self.db_adapter.session() as session, session.begin():
+                from app.models.next_of_kin import NextOfKin
+
+                updated_fields_ = updated_fields.model_dump(
+                    exclude_none=True, exclude=["next_of_kin"]
+                )
+
                 query = (
                     update(self.model)
                     .where(self.model.id == id)
-                    .values(**updated_fields)
+                    .values({**updated_fields_})
                     .execution_options(synchronize_session="fetch")
                 )
+
                 result = await session.execute(query)
 
-                q = select(self.model).where(self.model.id == id)
+                if updated_fields.next_of_kin is not None:
+                    # Then, update or insert next_of_kin separately
+                    next_of_kin_data = {
+                        **updated_fields.model_dump(include=["next_of_kin"]).get(
+                            "next_of_kin"
+                        )
+                    }
+                    existing_nok = (
+                        await session.execute(
+                            select(NextOfKin).where(NextOfKin.user_id == id)
+                        )
+                    ).scalar_one_or_none()
 
-                updated_record = (await session.execute(q)).scalar_one_or_none()
+                    if existing_nok:
+                        for key, value in next_of_kin_data.items():
+                            setattr(existing_nok, key, value)
+                    else:
+                        new_nok = NextOfKin(
+                            user_id=id,
+                            name=next_of_kin_data.get("name"),
+                            relationship=next_of_kin_data.get("relationship"),
+                            phone=next_of_kin_data.get("phone"),
+                            email=next_of_kin_data.get("email", None),
+                        )
+                        session.add(new_nok)
+
+                updated_record = (
+                    await session.execute(
+                        select(self.model)
+                        .where(self.model.id == id)
+                        .options(
+                            selectinload(self.model.role).selectinload(
+                                Role.permissions
+                            ),
+                            selectinload(self.model.next_of_kin),
+                            selectinload(self.model.permissions),
+                            selectinload(self.model.bank),
+                            selectinload(self.model.attendance),
+                            selectinload(self.model.department),
+                            selectinload(self.model.leave_requests),
+                            selectinload(self.model.employment_type),
+                            selectinload(self.model.payroll_class),
+                            selectinload(self.model.pension),
+                        )
+                    )
+                ).scalar_one_or_none()
 
                 if result.rowcount < 1:
                     return updated_record
 
                 return updated_record
-            except Exception as e:
-                await self.db_adapter.rollback(session)
-                raise e
+        except Exception as e:
+            await self.db_adapter.rollback(session)
+            raise
 
     async def attach_role(self, user_id: UUID, role_id: UUID) -> None:
         """Add user role"""

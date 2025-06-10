@@ -12,8 +12,11 @@ from app.schemas.base_schema import ModelBaseInfo
 class CreateBankSchema(BaseModel):
     name: str = Field(..., example="Zenith Bank")
 
+class UpdateBankSchema(BaseModel):
+    name: Optional[str] = None
 
-class BankSchema(ModelBaseInfo):
+
+class ReadBankSchema(ModelBaseInfo):
     name: str
 
     users: Optional[List[User]] = None

@@ -42,7 +42,7 @@ async def create_payroll(
 
     return user
 
-@router.get("/all", response_model=Sequence[PayrollSchema],
+@router.get("/all", response_model=None,
     name="Get all Payroll records",
     description="This route is used to get all payroll records on HRIS",)
 @inject

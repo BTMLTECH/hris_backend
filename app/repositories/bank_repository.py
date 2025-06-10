@@ -4,11 +4,11 @@
 """Bank Repository"""
 
 from uuid import UUID, uuid4
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from app.adapter.json_adapter import JSONAdapter
 from app.adapter.sqlalchemy_adapter import SQLAlchemyAdapter
 from app.models.bank import Bank
-from app.schemas.bank_schema import CreateBankSchema
+from app.schemas.bank_schema import CreateBankSchema, UpdateBankSchema
 from typing import Optional, Sequence, TypeVar, Union
 from psycopg2 import IntegrityError
 from app.core.exceptions import (
@@ -85,40 +85,40 @@ class BankRepository(BaseRepository):
             .options(selectinload(self.model.users))
         )
 
-        async with self.db_adapter.session() as session, session.begin():
-            try:
-                result = (await session.execute(query)).scalar_one_or_none()
+        try:
+                async with self.db_adapter.session() as session, session.begin():
+                        result = (await session.execute(query)).scalar_one_or_none()
 
-                return result
-            except OperationalError as e:
-                logger.error("Operational error (e.g., DB connection issue): %s", e)
-                raise CustomDatabaseError(
-                    message="Something happened with the database connectivity"
-                )
+                        return result
+        except OperationalError as e:
+            logger.error("Operational error (e.g., DB connection issue): %s", e)
+            raise CustomDatabaseError(
+                message="Something happened with the database connectivity"
+            )
 
-            except ProgrammingError as e:
-                logger.error("Programming error (e.g., invalid column/table): %s", e)
-                raise CustomDatabaseError(message=str(e))
+        except ProgrammingError as e:
+            logger.error("Programming error (e.g., invalid column/table): %s", e)
+            raise CustomDatabaseError(message=str(e))
 
-            except NoResultFound as e:
-                logger.warning("No result found where one was expected: %s", e)
-                raise NotFoundError(detail="Bank does not exist or ID is invalid")
+        except NoResultFound as e:
+            logger.warning("No result found where one was expected: %s", e)
+            raise NotFoundError(detail="Bank does not exist or ID is invalid")
 
-            except StatementError as e:
-                logger.error(
-                    "Statement error (e.g., type mismatch or bad query): %s", e
-                )
-                raise CustomDatabaseError(
-                    message="An error occured executing query statement"
-                )
+        except StatementError as e:
+            logger.error(
+                "Statement error (e.g., type mismatch or bad query): %s", e
+            )
+            raise CustomDatabaseError(
+                message="An error occured executing query statement"
+            )
 
-            except AttributeError as e:
-                logger.error("Model attribute error: %s", e)
-                raise GeneralError(detail="Model attribute error")
+        except AttributeError as e:
+            logger.error("Model attribute error: %s", e)
+            raise GeneralError(detail="Model attribute error")
 
-            except TypeError as e:
-                logger.error("Type error in select/model usage: %s", e)
-                raise GeneralError(detail="Type error ")
+        except TypeError as e:
+            logger.error("Type error in select/model usage: %s", e)
+            raise GeneralError(detail="Type error ")
 
         return None
 
@@ -134,7 +134,6 @@ class BankRepository(BaseRepository):
             except Exception as e:
                 raise GeneralError(detail=str(e))
 
-
     async def get_by_name(self, name: str) -> Optional[Bank]:
         """Get a bank by name"""
         async with self.session_scope() as session:
@@ -142,3 +141,96 @@ class BankRepository(BaseRepository):
                 select(self.model).where(self.model.name.lower() == name.lower())
             )
             return result.scalars().first()
+
+    async def update_by_id(self, id: UUID, bank_fields: UpdateBankSchema):
+        try:
+            async with self.session_scope() as session:
+                query = (
+                    update(self.model)
+                    .where(self.model.id == id)
+                    .values({**bank_fields.model_dump(exclude_none=True)})
+                    .execution_options(synchronize_session="fetch")
+                )
+
+                result = await session.execute(query)
+
+                updated_record = (
+                    await session.execute(
+                        select(self.model)
+                        .where(self.model.id == id)
+                        .options(selectinload(self.model.users))
+                    )
+                ).scalar_one_or_none()
+
+                if result.rowcount < 1:
+                    return updated_record
+
+                return updated_record
+        except OperationalError as e:
+            logger.error("Operational error (e.g., DB connection issue): %s", e)
+            raise CustomDatabaseError(
+                message="Something happened with the database connectivity"
+            )
+
+        except ProgrammingError as e:
+            logger.error("Programming error (e.g., invalid column/table): %s", e)
+            raise CustomDatabaseError(message=str(e))
+
+        except NoResultFound as e:
+            logger.warning("No result found where one was expected: %s", e)
+            raise NotFoundError(detail="Bank does not exist or ID is invalid")
+
+        except StatementError as e:
+            logger.error("Statement error (e.g., type mismatch or bad query): %s", e)
+            raise CustomDatabaseError(
+                message="An error occured executing query statement"
+            )
+
+        except AttributeError as e:
+            logger.error("Model attribute error: %s", e)
+            raise GeneralError(detail="Model attribute error")
+
+        except TypeError as e:
+            logger.error("Type error in select/model usage: %s", e)
+            raise GeneralError(detail="Type error ")
+
+    async def delete_by_id(self, id: UUID) -> bool:
+        try:
+            async with self.session_scope() as session:
+                bank = (
+                    await session.execute(select(self.model).where(self.model.id == id))
+                ).scalar_one_or_none()
+
+                if not bank:
+                    return False
+
+                await session.delete(bank)
+                await session.commit()
+                return True
+        except OperationalError as e:
+            logger.error("Operational error (e.g., DB connection issue): %s", e)
+            raise CustomDatabaseError(
+                message="Something happened with the database connectivity"
+            )
+
+        except ProgrammingError as e:
+            logger.error("Programming error (e.g., invalid column/table): %s", e)
+            raise CustomDatabaseError(message=str(e))
+
+        except NoResultFound as e:
+            logger.warning("No result found where one was expected: %s", e)
+            raise NotFoundError(detail="Bank does not exist or ID is invalid")
+
+        except StatementError as e:
+            logger.error("Statement error (e.g., type mismatch or bad query): %s", e)
+            raise CustomDatabaseError(
+                message="An error occured executing query statement"
+            )
+
+        except AttributeError as e:
+            logger.error("Model attribute error: %s", e)
+            raise GeneralError(detail="Model attribute error")
+
+        except TypeError as e:
+            logger.error("Type error in select/model usage: %s", e)
+            raise GeneralError(detail="Type error ")

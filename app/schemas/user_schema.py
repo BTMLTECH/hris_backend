@@ -71,6 +71,9 @@ class CachedUser(ModelBaseInfo):
 class CreateEmploymentTypeSchema(BaseModel):
     name: str
 
+class UpdateEmploymentTypeSchema(BaseModel):
+    name: Optional[str] = None
+
 class ReadEmploymentTypeSchema(ModelBaseInfo):
     name: str
 
@@ -78,12 +81,14 @@ class ReadEmploymentTypeSchema(ModelBaseInfo):
         from_attributes = True
         orm_mode = True
 
+
 #
 
 
 class UserGenderType(str, Enum):
     MALE = "MALE"
     FEMALE = "FEMALE"
+
 
 class UserRoleType(str, Enum):
     EMPLOYEE = "employee"
@@ -116,6 +121,64 @@ class UserBaseSchema(BaseModel):
     attendance: Optional[List[Attendance]] = None
     leave_requests: Optional[List[LeaveRequest]] = None
 
+    department_id: Optional[UUID] = None
+    department: Optional[Department] = None
+
+    personal_email: Optional[EmailStr] = None
+    employment_date: Optional[datetime] = None
+
+    employment_type_id: Optional[UUID] = None
+    employment_type: Optional[EmploymentType] = None
+
+    payroll_class_id: Optional[UUID] = None
+    payroll_class: Optional[Payroll] = None
+    bank_id: Optional[UUID] = None
+    bank: Optional[Bank] = None
+    bank_account_number: Optional[str] = None
+    tax_number: Optional[str] = None
+
+    pension_id: Optional[UUID] = None
+    pension: Optional[Pension] = None
+    pension_number: Optional[str] = None
+
+    role_id: Optional[UUID] = None
+    role: Optional[RoleSchema] = None
+
+    permissions: Optional[List[Permission]] = None
+    is_active: Optional[bool] = True
+
+    class Config:
+        # from_attributes = True
+        orm_mode = True
+
+
+class SuperAdminSchema(UserBaseSchema): ...
+
+
+class UserSchema(UserBaseSchema): ...
+
+
+class UserUpdateSchema(UserBaseSchema):
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
+    gender: Optional[UserGenderType] = None
+    image_uri: Optional[str] = None
+    dob: Optional[date] = None
+    job_title: Optional[str] = None
+    staff_id: Optional[int] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+
+    next_of_kin: Optional[NextOfKin] = None
+    personal_email: Optional[EmailStr] = None
+    bank_id: Optional[UUID] = None
+    bank: Optional[Bank] = None
+    bank_account_number: Optional[str] = None
 
     department_id: Optional[UUID] = None
     department: Optional[Department] = None
@@ -139,36 +202,10 @@ class UserBaseSchema(BaseModel):
 
     role_id: Optional[UUID] = None
     role: Optional[RoleSchema] = None
-    
+
     permissions: Optional[List[Permission]] = None
     is_active: Optional[bool] = True
 
     class Config:
-        # from_attributes = True
+        from_attributes = True
         orm_mode = True
-
-
-
-class SuperAdminSchema(UserBaseSchema): ...
-
-
-class UserSchema(UserBaseSchema): ...
-
-
-class UserUpdateSchema(BaseModel):
-    first_name: Optional[str] = None
-    middle_name: Optional[str] = None
-    last_name: Optional[str] = None
-    gender: Optional[UserGenderType] = None
-    dob: Optional[date] = None
-    image_uri: Optional[str] = None
-    job_title: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-    next_of_kin: Optional[NextOfKin] = None
-    personal_email: Optional[EmailStr] = None
-    bank_name: Optional[str] = None
-    bank_account_number: Optional[str] = None

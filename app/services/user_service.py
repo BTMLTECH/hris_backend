@@ -19,7 +19,7 @@ from app.schemas.auth_schema import (
     CreateUserSchema,
     UserSignUpSchema,
 )
-from app.schemas.user_schema import CreateEmploymentTypeSchema
+from app.schemas.user_schema import CreateEmploymentTypeSchema, UpdateEmploymentTypeSchema, UserUpdateSchema
 from app.services.base_service import BaseService
 import logging
 from sqlalchemy.exc import SQLAlchemyError
@@ -60,6 +60,7 @@ class UserService(BaseService):
                 raise NotFoundError(f"Role {user_data.user_role} not found.")
 
             user_data.role_id = role.id
+            user_data.role = role
 
             permissions = (
                 [
@@ -119,6 +120,46 @@ class UserService(BaseService):
         except Exception as e:
             raise GeneralError(detail=str(e))
 
+    async def update_employment_type(self, id: str, employment_type_data: UpdateEmploymentTypeSchema):
+        """Update an employment type by ID"""
+        from uuid import UUID
+
+        try:
+            employmt_type_uid = UUID(id)
+        except (TypeError, ValueError):
+            raise GeneralError(detail="Bank ID is invalid", status_code=400)
+        
+        try:
+            employment_type_data = await self.user_repository.get_employment_type_by_id(id)
+
+            if not employment_type_data or employment_type_data is None:
+                raise NotFoundError(detail="Bank not found or doesn't exist")
+            
+            return await self.user_repository.update_employment_type_by_id(employmt_type_uid, employment_type_data)
+        except Exception as e:
+            logger.error(f"An error has occured while updating bank: {e}")
+            raise GeneralError(detail="Could not update Bank")
+    
+    async def delete_employment_type_by_id(self, id: str):
+        """Delete a bank by ID"""
+        from uuid import UUID
+
+        try:
+            employment_type_uid = UUID(id)
+        except (TypeError, ValueError):
+            raise GeneralError(detail="Bank ID is invalid", status_code=400)
+        
+        try:
+            bank_data = await self.user_repository.get_employment_type_by_id(id)
+
+            if not bank_data or bank_data is None:
+                raise NotFoundError(detail="Bank not found or doesn't exist")
+            
+            return await self.user_repository.delete_employment_type_by_id(employment_type_uid)
+        except Exception as e:
+            logger.error(f"An error has occured while deleting bank: {e}")
+            raise GeneralError(detail="Could not delete Bank")
+
     async def get_by_id(self, id: str) -> Optional[User]:
         """Get a user by their ID"""
         user_uid: UUID
@@ -144,6 +185,26 @@ class UserService(BaseService):
         """Update a user profile"""
         print(user_info)
         return None
+
+    async def edit_employee_profile(self, user_id: str, user_info: UserUpdateSchema):
+        """Edit an employee's profile by admin"""
+        from uuid import UUID
+
+        try:
+            user_uid = UUID(user_id)
+        except (TypeError, ValueError):
+            raise GeneralError(detail="User ID is invalid", status_code=400)
+
+        # Fetch the user to ensure they exist
+        user = await self.user_repository.get_by_id(user_uid)
+        if not user:
+            raise GeneralError(detail="User not found", status_code=404)
+
+        # Update the user profile
+        updated_user = await self.user_repository.update_by_id(
+            user_uid, user_info
+        )
+        return updated_user
 
     async def delete_by_id(self, id: str) -> Optional[User]:
         """Delete a user by their ID"""
