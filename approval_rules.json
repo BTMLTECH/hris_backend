@@ -1,6 +1,0 @@
-{
-    "EMPLOYEE": ["TEAM_LEAD", "HR"],
-    "TEAM_LEAD": ["HR"],
-    "HR": ["MD"],
-    "MD": []
-  }
